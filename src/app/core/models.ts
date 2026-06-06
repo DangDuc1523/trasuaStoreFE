@@ -20,7 +20,7 @@ export interface OrderItem {
 export interface Order {
   id: number;
   tableNumber: string;
-  status: 'new' | 'making' | 'done';
+  status: 'new' | 'making' | 'ready' | 'done';
   total: number;
   createdAt: string;
   items: OrderItem[];
