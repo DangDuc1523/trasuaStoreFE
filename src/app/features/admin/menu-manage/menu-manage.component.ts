@@ -11,7 +11,7 @@ import { MenuItem, CATEGORY_LABELS } from '../../../core/models';
   imports: [CommonModule, FormsModule, RouterLink],
   template: `
 <div class="admin-layout">
-  <!-- Sidebar Navigation -->
+  <!-- Desktop Sidebar / Mobile Bottom Nav -->
   <aside class="sidebar">
     <div class="sidebar-brand">🥤 HANA</div>
     <nav class="nav-menu">
@@ -82,14 +82,12 @@ import { MenuItem, CATEGORY_LABELS } from '../../../core/models';
       </div>
     }
   </main>
-
-  <div class="nav-spacer"></div>
 </div>
 
 <!-- Add/Edit Sheet -->
 @if (showSheet) {
   <div class="sheet-overlay" (click)="onOverlay($event)">
-    <div class="sheet-container">
+    <div class="sheet-container" (click)="$event.stopPropagation()">
       <div class="sheet-handle"></div>
       <div class="sheet-header">
         <h2>{{ editingId ? 'Sửa món ăn' : 'Thêm món mới' }}</h2>
@@ -217,7 +215,7 @@ import { MenuItem, CATEGORY_LABELS } from '../../../core/models';
     .category-chips button.active { background: var(--text); color: var(--bg); border-color: var(--text); }
 
     /* List Rows */
-    .menu-list { display: flex; flex-direction: column; gap: 14px; }
+    .menu-list { display: flex; flex-direction: column; gap: 14px; margin-bottom: 40px !important;}
     .menu-item-row { background: var(--card); border: 1px solid var(--border); border-radius: 24px; padding: 16px; display: flex; align-items: center; gap: 18px; transition: 0.2s; }
     .menu-item-row:hover { border-color: #444; }
     .menu-item-row.is-hidden { opacity: 0.4; filter: grayscale(1); }
@@ -271,7 +269,6 @@ import { MenuItem, CATEGORY_LABELS } from '../../../core/models';
 
     .error-msg { color: var(--red); font-size: 14px; font-weight: 700; margin-top: 12px; text-align: center; background: rgba(255,68,68,0.1); padding: 12px; border-radius: 12px; }
 
-    /* Footer Buttons Re-styled */
     .sheet-footer { margin-top: 40px; display: flex; flex-direction: column; gap: 14px; }
     .footer-main-row { display: flex; gap: 14px; }
     
@@ -299,11 +296,10 @@ import { MenuItem, CATEGORY_LABELS } from '../../../core/models';
       .nav-item .label { font-size: 11px; }
       .nav-item.active { background: transparent; color: var(--gold); box-shadow: none; }
       
-      .main-content { padding: 24px; padding-top: 32px; }
-      .page-header h1 { font-size: 28px; }
+      .main-content { padding: 16px; padding-top: 24px; padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
+      .page-header h1 { font-size: 24px; }
       .btn-add-desktop { display: none; }
       .btn-add-mobile { display: block; }
-      .nav-spacer { height: 90px; }
       .filter-bar { margin: 0 -24px 28px; padding: 0 24px; }
       .sheet-container { padding: 24px; }
     }

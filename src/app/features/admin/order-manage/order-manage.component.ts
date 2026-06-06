@@ -203,8 +203,6 @@ interface TableBill {
       </div>
     </div>
   }
-
-  <div class="nav-spacer"></div>
 </div>
   `,
   styles: [`
@@ -337,10 +335,9 @@ interface TableBill {
       .nav-item .icon { font-size: 20px; }
       .nav-item .label { font-size: 10px; }
       .nav-item.active { background: transparent; color: var(--gold); }
-      .main-content { padding: 16px; padding-top: 24px; }
+      .main-content { padding: 16px; padding-top: 24px; padding-bottom: calc(100px + env(safe-area-inset-bottom)); }
       .page-header h1 { font-size: 24px; }
       .btn-logout-mobile { display: block; }
-      .nav-spacer { height: 80px; }
       
       .modal-content { padding: 24px; border-radius: 32px 32px 0 0; align-self: flex-end; margin: 0; max-width: none; }
       .col-price { display: none; }
@@ -419,7 +416,6 @@ export class OrderManageComponent implements OnInit, OnDestroy {
       }
     });
 
-    // Merge duplicate items in bill for better readability
     const bills = Array.from(billsMap.values()).map(bill => {
       const mergedItems: OrderItem[] = [];
       bill.items.forEach(item => {
