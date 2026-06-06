@@ -12,7 +12,7 @@ import { AuthService } from '../../../core/services/auth.service';
   template: `
 <div class="login-wrap">
   <div class="login-card">
-    <div class="brand">🧋 Trà Sữa Mộc</div>
+    <div class="brand">🥤 HANA</div>
     <div class="subtitle">Admin Panel</div>
     <div class="form-group">
       <label>Tên đăng nhập</label>

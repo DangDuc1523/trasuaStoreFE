@@ -1,9 +1,8 @@
 import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { RouterLink } from '@angular/router';
+import { RouterLink, Router } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/services/auth.service';
-import { Router } from '@angular/router';
 import { Order } from '../../../core/models';
 
 @Component({
@@ -11,123 +10,221 @@ import { Order } from '../../../core/models';
   standalone: true,
   imports: [CommonModule, RouterLink],
   template: `
-<div class="admin-wrap">
-  <!-- Topbar -->
-  <div class="topbar">
-    <div class="brand">🧋 Admin Panel</div>
-    <div class="topbar-actions">
-      <a routerLink="/admin/menu" class="nav-btn">🍽 Menu</a>
-      <button class="nav-btn logout" (click)="logout()">Đăng xuất</button>
+<div class="admin-layout">
+  <!-- Desktop Sidebar / Mobile Bottom Nav -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">🥤 HANA</div>
+    <nav class="nav-menu">
+      <a routerLink="/admin/orders" class="nav-item active">
+        <span class="icon">📋</span>
+        <span class="label">Đơn hàng</span>
+      </a>
+      <a routerLink="/admin/menu" class="nav-item">
+        <span class="icon">🍽</span>
+        <span class="label">Thực đơn</span>
+      </a>
+    </nav>
+    <button class="logout-btn-desktop" (click)="logout()">🚪 Đăng xuất</button>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <header class="page-header">
+      <div class="header-left">
+        <h1>Đơn hàng</h1>
+        <p class="subtitle">Quản lý pha chế & giao món</p>
+      </div>
+      <div class="header-actions">
+        <button class="btn-refresh" (click)="load()" title="Làm mới">🔄</button>
+        <button class="btn-logout-mobile" (click)="logout()">🚪</button>
+      </div>
+    </header>
+
+    <!-- Stats Row (Optimized for Mobile) -->
+    <div class="stats-scroll">
+      <div class="stat-card new">
+        <span class="stat-label">Chờ làm</span>
+        <span class="stat-val">{{ pendingCount }}</span>
+      </div>
+      <div class="stat-card making">
+        <span class="stat-label">Đang làm</span>
+        <span class="stat-val">{{ makingCount }}</span>
+      </div>
+      <div class="stat-card revenue">
+        <span class="stat-label">Doanh thu</span>
+        <span class="stat-val">{{ revenue | number }}đ</span>
+      </div>
     </div>
-  </div>
 
-  <!-- Stats -->
-  <div class="stats">
-    <div class="stat"><div class="stat-val">{{ orders.length }}</div><div class="stat-label">Tổng đơn</div></div>
-    <div class="stat"><div class="stat-val">{{ pendingCount }}</div><div class="stat-label">Chờ làm</div></div>
-    <div class="stat"><div class="stat-val" style="font-size:14px">{{ revenue | number }}đ</div><div class="stat-label">Doanh thu</div></div>
-  </div>
+    <!-- Filter Tabs (Optimized for Mobile) -->
+    <div class="filter-bar">
+      <div class="category-chips">
+        <button [class.active]="filter===''" (click)="setFilter('')">Tất cả</button>
+        <button [class.active]="filter==='new'" (click)="setFilter('new')">🔴 Mới</button>
+        <button [class.active]="filter==='making'" (click)="setFilter('making')">🔵 Đang làm</button>
+        <button [class.active]="filter==='done'" (click)="setFilter('done')">✅ Xong</button>
+      </div>
+      @if (doneCount > 0) {
+        <button class="btn-clear-done" (click)="clearDone()">Dọn đơn xong</button>
+      }
+    </div>
 
-  <!-- Filter tabs -->
-  <div class="section-bar">
-    <h2>📋 Danh sách đơn</h2>
-    <button class="clear-btn" (click)="clearDone()">Xoá đơn xong</button>
-  </div>
-  <div class="tabs">
-    <button class="tab-btn" [class.active]="filter===''" (click)="setFilter('')">Tất cả</button>
-    <button class="tab-btn" [class.active]="filter==='new'" (click)="setFilter('new')">🔴 Mới</button>
-    <button class="tab-btn" [class.active]="filter==='making'" (click)="setFilter('making')">🔵 Đang làm</button>
-    <button class="tab-btn" [class.active]="filter==='done'" (click)="setFilter('done')">✅ Xong</button>
-  </div>
-
-  <!-- Orders -->
-  <div class="orders">
-    @for (order of filteredOrders; track order.id) {
-      <div class="order-card" [class.done]="order.status==='done'">
-        <div class="order-head">
-          <div class="order-table">📍 Bàn {{ order.tableNumber }}</div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <div class="order-time">⏱ {{ order.createdAt }}</div>
-            <div class="status-badge" [ngClass]="'badge-'+order.status">{{ statusLabel(order.status) }}</div>
-          </div>
-        </div>
-        <div class="order-items">
-          @for (item of order.items; track item.name) {
-            <div class="order-item-row">
-              <div>
-                <div class="item-row-name">{{ item.name }}</div>
-                @if (item.note) { <div class="item-row-note">📝 {{ item.note }}</div> }
-                <div class="item-row-qty">x{{ item.quantity }}</div>
-              </div>
-              <div class="item-row-price">{{ item.unitPrice | number }}đ</div>
+    <!-- Orders List -->
+    <div class="orders-list">
+      @for (order of filteredOrders; track order.id) {
+        <div class="order-card" [class.is-done]="order.status==='done'">
+          <div class="order-card-header">
+            <div class="order-title">
+              <span class="table-tag">Bàn {{ order.tableNumber }}</span>
+              <span class="time-tag">{{ order.createdAt }}</span>
             </div>
-          }
-        </div>
-        <div class="order-foot">
-          <div>
-            <div style="font-size:13px;font-weight:600">Tổng đơn</div>
-            <div class="order-total">{{ order.total | number }}đ</div>
+            <div class="status-badge" [ngClass]="'status-'+order.status">
+              {{ statusLabel(order.status) }}
+            </div>
           </div>
-          <div class="action-btns">
-            @if (order.status === 'new') {
-              <button class="action-btn btn-making" (click)="updateStatus(order, 'making')">🔵 Đang làm</button>
+
+          <div class="order-items-box">
+            @for (item of order.items; track $index) {
+              <div class="order-item-row">
+                <div class="item-info">
+                  <span class="item-qty">{{ item.quantity }}x</span>
+                  <span class="item-name">{{ item.name }}</span>
+                </div>
+                @if (item.note) { <div class="item-note">📝 {{ item.note }}</div> }
+              </div>
             }
-            @if (order.status === 'making') {
-              <button class="action-btn btn-done" (click)="updateStatus(order, 'done')">✅ Xong</button>
-            }
-            <button class="action-btn btn-delete" (click)="deleteOrder(order)">🗑</button>
+          </div>
+
+          <div class="order-card-footer">
+            <div class="total-info">
+              <span class="total-label">Tổng tiền</span>
+              <span class="total-val">{{ order.total | number }}đ</span>
+            </div>
+            <div class="order-actions">
+              @if (order.status === 'new') {
+                <button class="btn-step start" (click)="updateStatus(order, 'making')">Bắt đầu làm</button>
+              }
+              @if (order.status === 'making') {
+                <button class="btn-step finish" (click)="updateStatus(order, 'done')">Hoàn thành</button>
+              }
+              <button class="btn-del-order" (click)="deleteOrder(order)">🗑</button>
+            </div>
           </div>
         </div>
+      }
+    </div>
+
+    @if (filteredOrders.length === 0) {
+      <div class="empty-state">
+        <div class="empty-icon">☕</div>
+        <p>Hiện không có đơn hàng nào</p>
       </div>
     }
-    @if (filteredOrders.length === 0) {
-      <div class="empty"><div style="font-size:48px">☕</div><div>Chưa có đơn hàng nào</div></div>
-    }
-  </div>
+  </main>
+
+  <!-- Mobile Bottom Nav Spacer -->
+  <div class="nav-spacer"></div>
 </div>
   `,
   styles: [`
-    .admin-wrap { background:#f7f5f0;min-height:100vh;font-family:'DM Sans',sans-serif;color:#1a1a1a;padding-bottom:40px }
-    .topbar { background:#fff;border-bottom:1px solid #e5e0d5;padding:14px 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50 }
-    .brand { font-family:'Playfair Display',serif;font-size:20px;color:#c9a227 }
-    .topbar-actions { display:flex;gap:8px;align-items:center }
-    .nav-btn { padding:7px 14px;border-radius:10px;font-size:13px;font-weight:600;border:1px solid #e5e0d5;background:#f0ede5;cursor:pointer;color:#1a1a1a;text-decoration:none }
-    .nav-btn.logout { color:#e05a4b;border-color:#e05a4b;background:transparent }
-    .stats { display:grid;grid-template-columns:repeat(3,1fr);gap:12px;padding:20px 16px 8px }
-    .stat { background:#fff;border:1px solid #e5e0d5;border-radius:14px;padding:14px 16px;text-align:center }
-    .stat-val { font-family:'Playfair Display',serif;font-size:24px;font-weight:700;color:#c9a227 }
-    .stat-label { font-size:11px;color:#888;margin-top:2px;font-weight:500 }
-    .section-bar { display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px }
-    .section-bar h2 { font-size:15px;font-weight:600 }
-    .clear-btn { font-size:12px;color:#e05a4b;cursor:pointer;background:none;border:none }
-    .tabs { display:flex;gap:8px;padding:0 16px 12px;overflow-x:auto;scrollbar-width:none }
-    .tab-btn { white-space:nowrap;padding:6px 14px;border-radius:16px;font-size:12px;border:1px solid #e5e0d5;background:#fff;color:#888;cursor:pointer;font-weight:500 }
-    .tab-btn.active { background:#c9a227;border-color:#c9a227;color:#fff }
-    .orders { padding:0 16px;display:flex;flex-direction:column;gap:12px }
-    .order-card { background:#fff;border:1px solid #e5e0d5;border-radius:16px;overflow:hidden }
-    .order-card.done { opacity:0.55 }
-    .order-head { display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid #e5e0d5 }
-    .order-table { font-weight:700;font-size:16px }
-    .order-time { font-size:12px;color:#888 }
-    .status-badge { padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700 }
-    .badge-new { background:#fff3cd;color:#856404 }
-    .badge-making { background:#d1ecf1;color:#0c5460 }
-    .badge-done { background:#d4edda;color:#155724 }
-    .order-items { padding:12px 16px }
-    .order-item-row { display:flex;justify-content:space-between;align-items:flex-start;padding:5px 0;border-bottom:1px dashed #e5e0d5 }
-    .order-item-row:last-child { border-bottom:none }
-    .item-row-name { font-size:14px;font-weight:500 }
-    .item-row-note { font-size:11px;color:#888;margin-top:1px }
-    .item-row-qty { font-size:13px;color:#888 }
-    .item-row-price { font-family:'Playfair Display',serif;font-size:14px;color:#c9a227;font-weight:700 }
-    .order-foot { display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:#f0ede5;border-top:1px solid #e5e0d5 }
-    .order-total { font-family:'Playfair Display',serif;font-size:18px;color:#c9a227;font-weight:700 }
-    .action-btns { display:flex;gap:8px }
-    .action-btn { padding:7px 14px;border-radius:10px;font-size:12px;font-weight:600;cursor:pointer;border:none }
-    .btn-making { background:#0c5460;color:#fff }
-    .btn-done { background:#2d9e5c;color:#fff }
-    .btn-delete { background:#fff;border:1px solid #e5e0d5;color:#888 }
-    .empty { text-align:center;padding:60px 20px;color:#888 }
+    :host { --bg: #000000; --card: #121212; --text: #ffffff; --text-sec: #999999; --gold: #e8c547; --border: #222222; --red: #ff4d4d; --blue: #0096ff; --green: #2d9e5c; display: block; font-family: 'Quicksand', sans-serif; }
+    
+    .admin-layout { display: flex; min-height: 100vh; background: var(--bg); color: var(--text); }
+
+    /* Sidebar & Bottom Nav */
+    .sidebar { width: 240px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px 0; position: sticky; top: 0; height: 100vh; z-index: 1000; }
+    .sidebar-brand { font-family: 'Fredoka', sans-serif; font-size: 26px; color: var(--gold); padding: 0 24px 30px; font-weight: 700; }
+    .nav-menu { flex: 1; padding: 0 12px; }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 12px; color: var(--text-sec); text-decoration: none; font-weight: 700; margin-bottom: 6px; transition: 0.2s; }
+    .nav-item.active { background: var(--gold); color: #000; }
+    .logout-btn-desktop { margin: 20px 12px 0; padding: 12px; background: transparent; border: 1px solid var(--border); color: var(--red); border-radius: 12px; font-weight: 700; cursor: pointer; }
+
+    /* Content Area */
+    .main-content { flex: 1; padding: 24px; max-width: 1000px; margin: 0 auto; width: 100%; }
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .page-header h1 { font-family: 'Fredoka', sans-serif; font-size: 28px; }
+    .subtitle { color: var(--text-sec); font-size: 14px; font-weight: 600; }
+    
+    .header-actions { display: flex; gap: 10px; }
+    .btn-refresh { background: var(--card); border: 1px solid var(--border); color: var(--text); width: 44px; height: 44px; border-radius: 12px; cursor: pointer; font-size: 18px; }
+    .btn-logout-mobile { display: none; background: rgba(255,77,77,0.1); border: 1px solid rgba(255,77,77,0.2); color: var(--red); width: 44px; height: 44px; border-radius: 12px; cursor: pointer; font-size: 18px; }
+
+    /* Stats Scroll */
+    .stats-scroll { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; margin-bottom: 24px; padding-bottom: 4px; }
+    .stats-scroll::-webkit-scrollbar { display: none; }
+    .stat-card { flex: 1; min-width: 140px; background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
+    .stat-label { font-size: 12px; font-weight: 700; color: var(--text-sec); text-transform: uppercase; }
+    .stat-val { font-size: 24px; font-weight: 800; }
+    .stat-card.revenue .stat-val { color: var(--gold); }
+    .stat-card.new { border-left: 4px solid var(--red); }
+    .stat-card.making { border-left: 4px solid var(--blue); }
+
+    /* Filter Chips */
+    .filter-bar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
+    .category-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+    .category-chips::-webkit-scrollbar { display: none; }
+    .category-chips button { white-space: nowrap; background: var(--card); border: 1px solid var(--border); color: var(--text-sec); padding: 8px 18px; border-radius: 50px; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 13px; }
+    .category-chips button.active { background: var(--text); color: #000; border-color: var(--text); }
+    .btn-clear-done { align-self: flex-start; background: none; border: none; color: var(--text-sec); font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline; }
+
+    /* Orders List */
+    .orders-list { display: flex; flex-direction: column; gap: 16px; }
+    .order-card { background: var(--card); border: 1px solid var(--border); border-radius: 24px; padding: 20px; display: flex; flex-direction: column; gap: 16px; transition: 0.2s; }
+    .order-card:active { transform: scale(0.98); }
+    .order-card.is-done { opacity: 0.5; border-style: dashed; }
+
+    .order-card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+    .order-title { display: flex; flex-direction: column; gap: 4px; }
+    .table-tag { font-family: 'Fredoka', sans-serif; font-size: 18px; font-weight: 700; color: var(--text); }
+    .time-tag { font-size: 12px; color: var(--text-sec); font-weight: 600; }
+    
+    .status-badge { font-size: 10px; font-weight: 800; padding: 4px 10px; border-radius: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .status-new { background: rgba(255, 77, 77, 0.1); color: var(--red); }
+    .status-making { background: rgba(0, 150, 255, 0.1); color: var(--blue); }
+    .status-done { background: rgba(45, 158, 92, 0.1); color: var(--green); }
+
+    .order-items-box { background: var(--bg); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .order-item-row { display: flex; flex-direction: column; gap: 2px; }
+    .item-info { display: flex; gap: 8px; font-weight: 700; font-size: 14px; }
+    .item-qty { color: var(--gold); }
+    .item-note { font-size: 12px; color: var(--text-sec); font-style: italic; margin-left: 24px; }
+
+    .order-card-footer { display: flex; justify-content: space-between; align-items: flex-end; padding-top: 12px; border-top: 1px dashed var(--border); }
+    .total-info { display: flex; flex-direction: column; gap: 2px; }
+    .total-label { font-size: 11px; font-weight: 700; color: var(--text-sec); text-transform: uppercase; }
+    .total-val { font-size: 18px; font-weight: 800; color: var(--gold); }
+    
+    .order-actions { display: flex; gap: 8px; }
+    .btn-step { border: none; padding: 10px 16px; border-radius: 12px; font-weight: 800; font-size: 13px; cursor: pointer; font-family: inherit; }
+    .btn-step.start { background: var(--blue); color: #fff; }
+    .btn-step.finish { background: var(--green); color: #fff; }
+    .btn-del-order { background: rgba(255,77,77,0.05); border: 1px solid rgba(255,77,77,0.1); color: var(--red); width: 40px; height: 40px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+
+    .empty-state { text-align: center; padding: 80px 0; color: var(--text-sec); }
+    .empty-icon { font-size: 48px; margin-bottom: 10px; opacity: 0.2; }
+
+    /* Mobile Logic (Bottom Nav) */
+    @media (max-width: 768px) {
+      .sidebar { 
+        width: 100%; height: auto; position: fixed; top: auto; bottom: 0; 
+        flex-direction: row; border-right: none; border-top: 1px solid var(--border);
+        padding: 0; padding-bottom: env(safe-area-inset-bottom);
+      }
+      .sidebar-brand, .logout-btn-desktop { display: none; }
+      .nav-menu { display: flex; width: 100%; padding: 4px 10px; }
+      .nav-item { flex: 1; flex-direction: column; gap: 4px; padding: 8px; margin-bottom: 0; border-radius: 8px; }
+      .nav-item .icon { font-size: 20px; }
+      .nav-item .label { font-size: 10px; }
+      .nav-item.active { background: transparent; color: var(--gold); }
+      
+      .main-content { padding: 16px; padding-top: 24px; }
+      .page-header h1 { font-size: 24px; }
+      .btn-logout-mobile { display: block; }
+      .nav-spacer { height: 80px; }
+      
+      .stat-card { min-width: 120px; padding: 12px; }
+      .stat-val { font-size: 20px; }
+    }
   `]
 })
 export class OrderManageComponent implements OnInit, OnDestroy {
@@ -144,6 +241,8 @@ export class OrderManageComponent implements OnInit, OnDestroy {
 
   get filteredOrders() { return this.filter ? this.orders.filter(o => o.status === this.filter) : this.orders; }
   get pendingCount() { return this.orders.filter(o => o.status === 'new').length; }
+  get makingCount() { return this.orders.filter(o => o.status === 'making').length; }
+  get doneCount() { return this.orders.filter(o => o.status === 'done').length; }
   get revenue() { return this.orders.filter(o => o.status === 'done').reduce((s, o) => s + o.total, 0); }
 
   setFilter(f: string) { this.filter = f; }
@@ -157,14 +256,18 @@ export class OrderManageComponent implements OnInit, OnDestroy {
   }
 
   deleteOrder(order: Order) {
-    this.api.deleteOrder(order.id).subscribe(() => {
-      this.orders = this.orders.filter(o => o.id !== order.id);
-    });
+    if (confirm('Xoá đơn hàng này?')) {
+      this.api.deleteOrder(order.id).subscribe(() => {
+        this.orders = this.orders.filter(o => o.id !== order.id);
+      });
+    }
   }
 
   clearDone() {
-    const doneOrders = this.orders.filter(o => o.status === 'done');
-    Promise.all(doneOrders.map(o => this.api.deleteOrder(o.id).toPromise())).then(() => this.load());
+    if (confirm('Xoá tất cả đơn đã hoàn thành?')) {
+      const doneOrders = this.orders.filter(o => o.status === 'done');
+      Promise.all(doneOrders.map(o => this.api.deleteOrder(o.id).toPromise())).then(() => this.load());
+    }
   }
 
   logout() { this.auth.logout(); this.router.navigate(['/admin/login']); }
