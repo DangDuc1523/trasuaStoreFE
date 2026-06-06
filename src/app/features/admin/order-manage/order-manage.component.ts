@@ -3,7 +3,16 @@ import { CommonModule } from '@angular/common';
 import { RouterLink, Router } from '@angular/router';
 import { ApiService } from '../../../core/services/api.service';
 import { AuthService } from '../../../core/services/auth.service';
-import { Order } from '../../../core/models';
+import { Order, OrderItem } from '../../../core/models';
+import { forkJoin } from 'rxjs';
+
+interface TableBill {
+  tableNumber: string;
+  total: number;
+  orderCount: number;
+  orderIds: number[];
+  items: OrderItem[];
+}
 
 @Component({
   selector: 'app-order-manage',
@@ -32,15 +41,9 @@ import { Order } from '../../../core/models';
     <header class="page-header">
       <div class="header-left">
         <h1>Đơn hàng</h1>
-        <p class="subtitle">Quản lý pha chế & giao món</p>
+        <p class="subtitle">Quản lý pha chế & thanh toán</p>
       </div>
       <div class="header-actions">
-        <!-- Notification Status Indicator -->
-        <div class="notif-status" [class.granted]="notifPermission === 'granted'" [title]="notifStatusTitle()">
-          {{ notifPermission === 'granted' ? '✔️ Browser Alert' : '⚠️ No Alert' }}
-        </div>
-        
-        <!-- Sound Toggle -->
         <button class="btn-sound" [class.muted]="!soundEnabled" (click)="toggleSound()" [title]="soundEnabled ? 'Tắt âm báo' : 'Bật âm báo'">
           {{ soundEnabled ? '🔔' : '🔕' }}
         </button>
@@ -60,9 +63,28 @@ import { Order } from '../../../core/models';
         <span class="stat-val">{{ makingCount }}</span>
       </div>
       <div class="stat-card revenue">
-        <span class="stat-label">Doanh thu</span>
+        <span class="stat-label">D.Thu (Đã thu)</span>
         <span class="stat-val">{{ revenue | number }}đ</span>
       </div>
+    </div>
+
+    <!-- Table Billing Section -->
+    <div class="section-title">💰 Thanh toán theo bàn</div>
+    <div class="table-bills-scroll">
+      @for (bill of tableBills; track bill.tableNumber) {
+        <div class="bill-card">
+          <div class="bill-head">
+            <span class="bill-table">Bàn {{ bill.tableNumber }}</span>
+            <span class="bill-count">{{ bill.orderCount }} đơn</span>
+          </div>
+          <div class="bill-total">{{ bill.total | number }}đ</div>
+          <button class="btn-checkout" (click)="openCheckoutModal(bill)">
+            Thanh toán
+          </button>
+        </div>
+      } @empty {
+        <div class="bill-empty">Hiện không có bàn nào đang order</div>
+      }
     </div>
 
     <!-- Filter Tabs -->
@@ -114,7 +136,7 @@ import { Order } from '../../../core/models';
                 <button class="btn-step start" (click)="updateStatus(order, 'making')">Bắt đầu làm</button>
               }
               @if (order.status === 'making') {
-                <button class="btn-step finish" (click)="updateStatus(order, 'done')">Hoàn thành</button>
+                <button class="btn-step finish" (click)="updateStatus(order, 'done')">Xong món</button>
               }
               <button class="btn-del-order" (click)="deleteOrder(order)">🗑</button>
             </div>
@@ -131,15 +153,66 @@ import { Order } from '../../../core/models';
     }
   </main>
 
+  <!-- Checkout Detail Modal -->
+  @if (selectedBill) {
+    <div class="modal-overlay" (click)="closeCheckoutModal()">
+      <div class="modal-content" (click)="$event.stopPropagation()">
+        <div class="modal-handle"></div>
+        <div class="modal-header">
+          <h2>Chi tiết hóa đơn</h2>
+          <span class="table-num">Bàn số {{ selectedBill.tableNumber }}</span>
+        </div>
+        
+        <div class="bill-details-list">
+          <div class="bill-item header">
+            <span class="col-name">Tên món</span>
+            <span class="col-qty">SL</span>
+            <span class="col-price">Đ.Giá</span>
+            <span class="col-total">T.Tiền</span>
+          </div>
+          @for (item of selectedBill.items; track $index) {
+            <div class="bill-item">
+              <div class="col-name">
+                <div class="name">{{ item.name }}</div>
+                @if (item.note) { <div class="note">📝 {{ item.note }}</div> }
+              </div>
+              <span class="col-qty">{{ item.quantity }}</span>
+              <span class="col-price">{{ item.unitPrice | number }}đ</span>
+              <span class="col-total">{{ item.unitPrice * item.quantity | number }}đ</span>
+            </div>
+          }
+        </div>
+
+        <div class="modal-footer">
+          <div class="summary-row">
+            <span>Tổng số lượng món</span>
+            <span class="val">{{ totalItemsInBill }} món</span>
+          </div>
+          <div class="summary-row total">
+            <span>Tổng cộng thanh toán</span>
+            <span class="val-total">{{ selectedBill.total | number }}đ</span>
+          </div>
+          
+          <div class="modal-actions">
+            <button class="btn-modal-close" (click)="closeCheckoutModal()">Quay lại</button>
+            <button class="btn-modal-confirm" (click)="confirmCheckout()" [disabled]="checkingOutTable === selectedBill.tableNumber">
+              {{ checkingOutTable === selectedBill.tableNumber ? '⏳ Đang xử lý...' : 'Xác nhận thanh toán' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  }
+
   <div class="nav-spacer"></div>
 </div>
   `,
   styles: [`
-    :host { --bg: #0d0d0d; --card: #1a1a1a; --text: #f0ebe0; --text-sec: #888888; --gold: #e8c547; --border: #2e2e2e; --red: #ff4d4d; --blue: #0096ff; --green: #2d9e5c; display: block; font-family: 'Quicksand', sans-serif; }
+    :host { --bg: #0d0d0d; --card: #1a1a1a; --text: #f0ebe0; --text-sec: #888888; --gold: #e8c547; --border: #2e2e2e; --red: #ff4444; --blue: #0096ff; --green: #2d9e5c; display: block; font-family: 'Quicksand', sans-serif; }
     
     .admin-layout { display: flex; min-height: 100vh; background: var(--bg); color: var(--text); }
 
-    /* Sidebar */
+    /* Sidebar & Bottom Nav */
     .sidebar { width: 240px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px 0; position: sticky; top: 0; height: 100vh; z-index: 1000; }
     .sidebar-brand { font-family: 'Fredoka', sans-serif; font-size: 26px; color: var(--gold); padding: 0 24px 30px; font-weight: 700; }
     .nav-menu { flex: 1; padding: 0 12px; }
@@ -154,17 +227,12 @@ import { Order } from '../../../core/models';
     .subtitle { color: var(--text-sec); font-size: 14px; font-weight: 600; }
     
     .header-actions { display: flex; gap: 10px; align-items: center; }
-    
-    .notif-status { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 8px; background: rgba(255,77,77,0.1); color: var(--red); border: 1px solid rgba(255,77,77,0.2); }
-    .notif-status.granted { background: rgba(45,158,92,0.1); color: var(--green); border-color: rgba(45,158,92,0.2); }
-
     .btn-refresh, .btn-sound { background: var(--card); border: 1px solid var(--border); color: var(--text); width: 44px; height: 44px; border-radius: 12px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
     .btn-sound.muted { color: var(--text-sec); opacity: 0.5; }
-    .btn-refresh:active, .btn-sound:active { transform: scale(0.92); }
     
     .btn-logout-mobile { display: none; background: rgba(255,77,77,0.1); border: 1px solid rgba(255,77,77,0.2); color: var(--red); width: 44px; height: 44px; border-radius: 12px; cursor: pointer; font-size: 18px; }
 
-    /* Stats Scroll */
+    /* Stats Row */
     .stats-scroll { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; margin-bottom: 24px; padding-bottom: 4px; }
     .stats-scroll::-webkit-scrollbar { display: none; }
     .stat-card { flex: 1; min-width: 140px; background: var(--card); border: 1px solid var(--border); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 4px; }
@@ -174,9 +242,23 @@ import { Order } from '../../../core/models';
     .stat-card.new { border-left: 4px solid var(--red); }
     .stat-card.making { border-left: 4px solid var(--blue); }
 
+    /* Table Billing Section */
+    .section-title { font-size: 13px; font-weight: 700; color: var(--text-sec); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; margin-top: 10px; }
+    .table-bills-scroll { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; margin-bottom: 30px; padding-bottom: 4px; }
+    .table-bills-scroll::-webkit-scrollbar { display: none; }
+    .bill-card { flex: 0 0 180px; background: linear-gradient(145deg, #1e1e1e, #141414); border: 1px solid var(--border); border-radius: 20px; padding: 16px; display: flex; flex-direction: column; gap: 8px; border-top: 2px solid var(--gold); }
+    .bill-head { display: flex; justify-content: space-between; align-items: center; }
+    .bill-table { font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 16px; color: var(--gold); }
+    .bill-count { font-size: 11px; color: var(--text-sec); font-weight: 600; }
+    .bill-total { font-size: 20px; font-weight: 800; color: #fff; }
+    .btn-checkout { background: var(--text); color: var(--bg); border: none; padding: 8px; border-radius: 12px; font-weight: 700; font-size: 13px; cursor: pointer; transition: 0.2s; }
+    .btn-checkout:active { transform: scale(0.95); }
+    .bill-empty { color: var(--text-sec); font-style: italic; font-size: 14px; padding: 10px 0; }
+
     /* Filter Chips */
     .filter-bar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
     .category-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+    .category-chips::-webkit-scrollbar { display: none; }
     .category-chips button { white-space: nowrap; background: var(--card); border: 1px solid var(--border); color: var(--text-sec); padding: 8px 18px; border-radius: 50px; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 13px; }
     .category-chips button.active { background: var(--text); color: #000; border-color: var(--text); }
     .btn-clear-done { align-self: flex-start; background: none; border: none; color: var(--text-sec); font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline; }
@@ -213,6 +295,36 @@ import { Order } from '../../../core/models';
     .btn-step.finish { background: var(--green); color: #fff; }
     .btn-del-order { background: rgba(255,77,77,0.05); border: 1px solid rgba(255,77,77,0.1); color: var(--red); width: 40px; height: 40px; border-radius: 10px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
+    /* Modal Styles */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.85); z-index: 2000; display: flex; align-items: center; justify-content: center; padding: 20px; backdrop-filter: blur(8px); }
+    .modal-content { background: var(--card); border: 1px solid var(--border); border-radius: 32px; width: 100%; max-width: 500px; padding: 32px; display: flex; flex-direction: column; gap: 24px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+    .modal-handle { width: 40px; height: 4px; background: #333; border-radius: 10px; margin: -10px auto 0; }
+    .modal-header { display: flex; justify-content: space-between; align-items: flex-end; }
+    .modal-header h2 { font-family: 'Fredoka', sans-serif; font-size: 24px; color: var(--gold); }
+    .table-num { font-weight: 800; color: var(--text-sec); font-size: 14px; text-transform: uppercase; }
+
+    .bill-details-list { display: flex; flex-direction: column; background: #000; border-radius: 20px; overflow: hidden; border: 1px solid var(--border); }
+    .bill-item { display: flex; align-items: flex-start; padding: 16px; border-bottom: 1px solid var(--border); font-size: 14px; }
+    .bill-item:last-child { border-bottom: none; }
+    .bill-item.header { background: #121212; font-weight: 800; color: var(--text-sec); font-size: 11px; text-transform: uppercase; letter-spacing: 1px; }
+    
+    .col-name { flex: 1; padding-right: 12px; }
+    .col-name .name { font-weight: 700; color: #fff; }
+    .col-name .note { font-size: 12px; color: var(--text-sec); margin-top: 4px; font-style: italic; }
+    .col-qty { width: 40px; text-align: center; font-weight: 800; color: var(--gold); }
+    .col-price { width: 80px; text-align: right; color: var(--text-sec); }
+    .col-total { width: 90px; text-align: right; font-weight: 800; color: var(--text); }
+
+    .modal-footer { display: flex; flex-direction: column; gap: 20px; }
+    .summary-row { display: flex; justify-content: space-between; align-items: center; color: var(--text-sec); font-weight: 600; font-size: 15px; }
+    .summary-row.total { border-top: 1px dashed var(--border); padding-top: 16px; color: #fff; }
+    .val-total { font-size: 32px; font-weight: 800; color: var(--gold); font-family: ' Fredoka', sans-serif; }
+    
+    .modal-actions { display: flex; gap: 12px; }
+    .btn-modal-close { flex: 1; background: #262626; color: var(--text); border: none; padding: 16px; border-radius: 18px; font-weight: 700; cursor: pointer; }
+    .btn-modal-confirm { flex: 2; background: var(--gold); color: #000; border: none; padding: 16px; border-radius: 18px; font-weight: 800; font-size: 16px; cursor: pointer; box-shadow: 0 10px 30px rgba(232,197,71,0.2); }
+    .btn-modal-confirm:disabled { opacity: 0.5; }
+
     .empty-state { text-align: center; padding: 80px 0; color: var(--text-sec); }
     .empty-icon { font-size: 48px; margin-bottom: 10px; opacity: 0.2; }
 
@@ -226,91 +338,142 @@ import { Order } from '../../../core/models';
       .nav-item .label { font-size: 10px; }
       .nav-item.active { background: transparent; color: var(--gold); }
       .main-content { padding: 16px; padding-top: 24px; }
+      .page-header h1 { font-size: 24px; }
       .btn-logout-mobile { display: block; }
       .nav-spacer { height: 80px; }
-      .notif-status { display: none; }
+      
+      .modal-content { padding: 24px; border-radius: 32px 32px 0 0; align-self: flex-end; margin: 0; max-width: none; }
+      .col-price { display: none; }
+      .val-total { font-size: 28px; }
     }
   `]
 })
 export class OrderManageComponent implements OnInit, OnDestroy {
   orders: Order[] = [];
   filter = '';
-  soundEnabled = true;
-  notifPermission: NotificationPermission = 'default';
+  soundEnabled = false;
+  checkingOutTable: string | null = null;
+  selectedBill: TableBill | null = null;
   
   private lastOrderCount = 0;
   private timer?: ReturnType<typeof setInterval>;
   private notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
+  private visibilityListener = () => {
+    if (document.visibilityState === 'visible') {
+      this.load();
+    }
+  };
 
   constructor(private api: ApiService, private auth: AuthService, private router: Router) {}
 
   ngOnInit() { 
     this.load(true); 
     this.timer = setInterval(() => this.load(), 5000); 
-    this.requestNotifPermission();
+    document.addEventListener('visibilitychange', this.visibilityListener);
   }
 
-  ngOnDestroy() { if (this.timer) clearInterval(this.timer); }
-
-  requestNotifPermission() {
-    if ('Notification' in window) {
-      this.notifPermission = Notification.permission;
-      if (this.notifPermission === 'default') {
-        Notification.requestPermission().then(perm => {
-          this.notifPermission = perm;
-        });
-      }
-    }
-  }
-
-  notifStatusTitle(): string {
-    if (this.notifPermission === 'granted') return 'Thông báo trình duyệt đang hoạt động';
-    if (this.notifPermission === 'denied') return 'Bạn đã chặn thông báo, hãy bật lại trong cài đặt trình duyệt';
-    return 'Nhấn để cho phép thông báo trình duyệt';
+  ngOnDestroy() { 
+    if (this.timer) clearInterval(this.timer);
+    document.removeEventListener('visibilitychange', this.visibilityListener);
   }
 
   load(isInitial = false) { 
-    this.api.getOrders().subscribe(o => {
-      const newOrders = o.filter(order => order.status === 'new');
-      
-      if (!isInitial && newOrders.length > this.lastOrderCount) {
-        // Find the latest order to show info
-        const latest = newOrders[0];
-        this.triggerAlert(latest);
+    this.api.getOrders().subscribe({
+      next: (o) => {
+        const newOrders = o.filter(order => order.status === 'new');
+        if (!isInitial && newOrders.length > this.lastOrderCount) {
+          this.playNotification();
+        }
+        this.orders = o;
+        this.lastOrderCount = newOrders.length;
       }
-      
-      this.orders = o;
-      this.lastOrderCount = newOrders.length;
     }); 
   }
 
-  triggerAlert(order: Order) {
-    // 1. Play Sound
+  playNotification() {
     if (this.soundEnabled) {
-      this.notificationSound.play().catch(e => console.log('Audio play blocked:', e));
+      this.notificationSound.currentTime = 0;
+      this.notificationSound.play().catch(() => {});
     }
+  }
 
-    // 2. Show Web Notification (System level)
-    if (this.notifPermission === 'granted') {
-      const n = new Notification('🥤 HANA - CÓ ORDER MỚI!', {
-        body: `Bàn số ${order.tableNumber} vừa đặt món. Tổng: ${order.total.toLocaleString()}đ`,
-        icon: 'assets/favicon.ico',
-        silent: true // We use our own sound
+  get tableBills(): TableBill[] {
+    const activeOrders = this.orders.filter(o => o.status !== 'done');
+    const billsMap = new Map<string, TableBill>();
+
+    activeOrders.forEach(o => {
+      const existing = billsMap.get(o.tableNumber);
+      if (existing) {
+        existing.total += o.total;
+        existing.orderCount += 1;
+        existing.orderIds.push(o.id);
+        existing.items = [...existing.items, ...o.items];
+      } else {
+        billsMap.set(o.tableNumber, {
+          tableNumber: o.tableNumber,
+          total: o.total,
+          orderCount: 1,
+          orderIds: [o.id],
+          items: [...o.items]
+        });
+      }
+    });
+
+    // Merge duplicate items in bill for better readability
+    const bills = Array.from(billsMap.values()).map(bill => {
+      const mergedItems: OrderItem[] = [];
+      bill.items.forEach(item => {
+        const existing = mergedItems.find(mi => mi.name === item.name && mi.note === item.note);
+        if (existing) {
+          existing.quantity += item.quantity;
+        } else {
+          mergedItems.push({ ...item });
+        }
       });
-      // Auto close after 10s
-      setTimeout(() => n.close(), 10000);
-      n.onclick = () => {
-        window.focus();
-        n.close();
-      };
-    }
+      bill.items = mergedItems;
+      return bill;
+    });
+
+    return bills.sort((a, b) => a.tableNumber.localeCompare(b.tableNumber));
+  }
+
+  openCheckoutModal(bill: TableBill) {
+    this.selectedBill = bill;
+  }
+
+  closeCheckoutModal() {
+    this.selectedBill = null;
+  }
+
+  get totalItemsInBill(): number {
+    return this.selectedBill?.items.reduce((s, i) => s + i.quantity, 0) || 0;
+  }
+
+  confirmCheckout() {
+    if (!this.selectedBill) return;
+    
+    this.checkingOutTable = this.selectedBill.tableNumber;
+    const requests = this.selectedBill.orderIds.map(id => this.api.updateOrderStatus(id, 'done'));
+    
+    forkJoin(requests).subscribe({
+      next: () => {
+        this.checkingOutTable = null;
+        this.closeCheckoutModal();
+        this.load();
+      },
+      error: () => {
+        alert('Lỗi khi thanh toán, vui lòng thử lại!');
+        this.checkingOutTable = null;
+      }
+    });
   }
 
   toggleSound() {
     this.soundEnabled = !this.soundEnabled;
     if (this.soundEnabled) {
-      this.notificationSound.play().catch(() => {});
-      if (this.notifPermission !== 'granted') this.requestNotifPermission();
+      this.notificationSound.play().then(() => {
+        setTimeout(() => { this.notificationSound.pause(); this.notificationSound.currentTime = 0; }, 500);
+      }).catch(() => alert('Vui lòng cho phép âm thanh!'));
     }
   }
 
@@ -324,32 +487,19 @@ export class OrderManageComponent implements OnInit, OnDestroy {
   statusLabel(s: string) { return { new: 'Mới', making: 'Đang làm', done: 'Hoàn thành' }[s] ?? s; }
 
   updateStatus(order: Order, status: string) {
-    this.api.updateOrderStatus(order.id, status).subscribe(updated => {
-      const idx = this.orders.findIndex(o => o.id === order.id);
-      if (idx >= 0) {
-        this.orders[idx] = updated;
-        if (status === 'making') {
-          this.lastOrderCount = Math.max(0, this.lastOrderCount - 1);
-        }
-      }
-    });
+    this.api.updateOrderStatus(order.id, status).subscribe(() => this.load());
   }
 
   deleteOrder(order: Order) {
     if (confirm('Xoá đơn hàng này?')) {
-      this.api.deleteOrder(order.id).subscribe(() => {
-        this.orders = this.orders.filter(o => o.id !== order.id);
-        if (order.status === 'new') {
-          this.lastOrderCount = Math.max(0, this.lastOrderCount - 1);
-        }
-      });
+      this.api.deleteOrder(order.id).subscribe(() => this.load());
     }
   }
 
   clearDone() {
     if (confirm('Xoá tất cả đơn đã hoàn thành?')) {
       const doneOrders = this.orders.filter(o => o.status === 'done');
-      Promise.all(doneOrders.map(o => this.api.deleteOrder(o.id).toPromise())).then(() => this.load());
+      forkJoin(doneOrders.map(o => this.api.deleteOrder(o.id))).subscribe(() => this.load());
     }
   }
 
