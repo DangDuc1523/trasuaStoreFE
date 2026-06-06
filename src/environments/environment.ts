@@ -1,4 +1,4 @@
 export const environment = {
   production: false,
-  apiUrl: 'http://localhost:5050/api'
+  apiUrl: 'https://trasua-backend.onrender.com/api'
 };
