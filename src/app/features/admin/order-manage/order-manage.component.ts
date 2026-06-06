@@ -35,12 +35,21 @@ import { Order } from '../../../core/models';
         <p class="subtitle">Quản lý pha chế & giao món</p>
       </div>
       <div class="header-actions">
+        <!-- Notification Status Indicator -->
+        <div class="notif-status" [class.granted]="notifPermission === 'granted'" [title]="notifStatusTitle()">
+          {{ notifPermission === 'granted' ? '✔️ Browser Alert' : '⚠️ No Alert' }}
+        </div>
+        
+        <!-- Sound Toggle -->
+        <button class="btn-sound" [class.muted]="!soundEnabled" (click)="toggleSound()" [title]="soundEnabled ? 'Tắt âm báo' : 'Bật âm báo'">
+          {{ soundEnabled ? '🔔' : '🔕' }}
+        </button>
         <button class="btn-refresh" (click)="load()" title="Làm mới">🔄</button>
         <button class="btn-logout-mobile" (click)="logout()">🚪</button>
       </div>
     </header>
 
-    <!-- Stats Row (Optimized for Mobile) -->
+    <!-- Stats Row -->
     <div class="stats-scroll">
       <div class="stat-card new">
         <span class="stat-label">Chờ làm</span>
@@ -56,7 +65,7 @@ import { Order } from '../../../core/models';
       </div>
     </div>
 
-    <!-- Filter Tabs (Optimized for Mobile) -->
+    <!-- Filter Tabs -->
     <div class="filter-bar">
       <div class="category-chips">
         <button [class.active]="filter===''" (click)="setFilter('')">Tất cả</button>
@@ -122,16 +131,15 @@ import { Order } from '../../../core/models';
     }
   </main>
 
-  <!-- Mobile Bottom Nav Spacer -->
   <div class="nav-spacer"></div>
 </div>
   `,
   styles: [`
-    :host { --bg: #000000; --card: #121212; --text: #ffffff; --text-sec: #999999; --gold: #e8c547; --border: #222222; --red: #ff4d4d; --blue: #0096ff; --green: #2d9e5c; display: block; font-family: 'Quicksand', sans-serif; }
+    :host { --bg: #0d0d0d; --card: #1a1a1a; --text: #f0ebe0; --text-sec: #888888; --gold: #e8c547; --border: #2e2e2e; --red: #ff4d4d; --blue: #0096ff; --green: #2d9e5c; display: block; font-family: 'Quicksand', sans-serif; }
     
     .admin-layout { display: flex; min-height: 100vh; background: var(--bg); color: var(--text); }
 
-    /* Sidebar & Bottom Nav */
+    /* Sidebar */
     .sidebar { width: 240px; background: var(--card); border-right: 1px solid var(--border); display: flex; flex-direction: column; padding: 24px 0; position: sticky; top: 0; height: 100vh; z-index: 1000; }
     .sidebar-brand { font-family: 'Fredoka', sans-serif; font-size: 26px; color: var(--gold); padding: 0 24px 30px; font-weight: 700; }
     .nav-menu { flex: 1; padding: 0 12px; }
@@ -145,8 +153,15 @@ import { Order } from '../../../core/models';
     .page-header h1 { font-family: 'Fredoka', sans-serif; font-size: 28px; }
     .subtitle { color: var(--text-sec); font-size: 14px; font-weight: 600; }
     
-    .header-actions { display: flex; gap: 10px; }
-    .btn-refresh { background: var(--card); border: 1px solid var(--border); color: var(--text); width: 44px; height: 44px; border-radius: 12px; cursor: pointer; font-size: 18px; }
+    .header-actions { display: flex; gap: 10px; align-items: center; }
+    
+    .notif-status { font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 8px; background: rgba(255,77,77,0.1); color: var(--red); border: 1px solid rgba(255,77,77,0.2); }
+    .notif-status.granted { background: rgba(45,158,92,0.1); color: var(--green); border-color: rgba(45,158,92,0.2); }
+
+    .btn-refresh, .btn-sound { background: var(--card); border: 1px solid var(--border); color: var(--text); width: 44px; height: 44px; border-radius: 12px; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+    .btn-sound.muted { color: var(--text-sec); opacity: 0.5; }
+    .btn-refresh:active, .btn-sound:active { transform: scale(0.92); }
+    
     .btn-logout-mobile { display: none; background: rgba(255,77,77,0.1); border: 1px solid rgba(255,77,77,0.2); color: var(--red); width: 44px; height: 44px; border-radius: 12px; cursor: pointer; font-size: 18px; }
 
     /* Stats Scroll */
@@ -162,7 +177,6 @@ import { Order } from '../../../core/models';
     /* Filter Chips */
     .filter-bar { display: flex; flex-direction: column; gap: 12px; margin-bottom: 24px; }
     .category-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
-    .category-chips::-webkit-scrollbar { display: none; }
     .category-chips button { white-space: nowrap; background: var(--card); border: 1px solid var(--border); color: var(--text-sec); padding: 8px 18px; border-radius: 50px; font-weight: 700; cursor: pointer; font-family: inherit; font-size: 13px; }
     .category-chips button.active { background: var(--text); color: #000; border-color: var(--text); }
     .btn-clear-done { align-self: flex-start; background: none; border: none; color: var(--text-sec); font-size: 12px; font-weight: 700; cursor: pointer; text-decoration: underline; }
@@ -170,7 +184,6 @@ import { Order } from '../../../core/models';
     /* Orders List */
     .orders-list { display: flex; flex-direction: column; gap: 16px; }
     .order-card { background: var(--card); border: 1px solid var(--border); border-radius: 24px; padding: 20px; display: flex; flex-direction: column; gap: 16px; transition: 0.2s; }
-    .order-card:active { transform: scale(0.98); }
     .order-card.is-done { opacity: 0.5; border-style: dashed; }
 
     .order-card-header { display: flex; justify-content: space-between; align-items: flex-start; }
@@ -183,7 +196,7 @@ import { Order } from '../../../core/models';
     .status-making { background: rgba(0, 150, 255, 0.1); color: var(--blue); }
     .status-done { background: rgba(45, 158, 92, 0.1); color: var(--green); }
 
-    .order-items-box { background: var(--bg); border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+    .order-items-box { background: #000; border-radius: 16px; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
     .order-item-row { display: flex; flex-direction: column; gap: 2px; }
     .item-info { display: flex; gap: 8px; font-weight: 700; font-size: 14px; }
     .item-qty { color: var(--gold); }
@@ -203,41 +216,103 @@ import { Order } from '../../../core/models';
     .empty-state { text-align: center; padding: 80px 0; color: var(--text-sec); }
     .empty-icon { font-size: 48px; margin-bottom: 10px; opacity: 0.2; }
 
-    /* Mobile Logic (Bottom Nav) */
+    /* Mobile Logic */
     @media (max-width: 768px) {
-      .sidebar { 
-        width: 100%; height: auto; position: fixed; top: auto; bottom: 0; 
-        flex-direction: row; border-right: none; border-top: 1px solid var(--border);
-        padding: 0; padding-bottom: env(safe-area-inset-bottom);
-      }
+      .sidebar { width: 100%; height: auto; position: fixed; top: auto; bottom: 0; flex-direction: row; border-right: none; border-top: 1px solid var(--border); padding: 0; padding-bottom: env(safe-area-inset-bottom); }
       .sidebar-brand, .logout-btn-desktop { display: none; }
       .nav-menu { display: flex; width: 100%; padding: 4px 10px; }
       .nav-item { flex: 1; flex-direction: column; gap: 4px; padding: 8px; margin-bottom: 0; border-radius: 8px; }
       .nav-item .icon { font-size: 20px; }
       .nav-item .label { font-size: 10px; }
       .nav-item.active { background: transparent; color: var(--gold); }
-      
       .main-content { padding: 16px; padding-top: 24px; }
-      .page-header h1 { font-size: 24px; }
       .btn-logout-mobile { display: block; }
       .nav-spacer { height: 80px; }
-      
-      .stat-card { min-width: 120px; padding: 12px; }
-      .stat-val { font-size: 20px; }
+      .notif-status { display: none; }
     }
   `]
 })
 export class OrderManageComponent implements OnInit, OnDestroy {
   orders: Order[] = [];
   filter = '';
+  soundEnabled = true;
+  notifPermission: NotificationPermission = 'default';
+  
+  private lastOrderCount = 0;
   private timer?: ReturnType<typeof setInterval>;
+  private notificationSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
 
   constructor(private api: ApiService, private auth: AuthService, private router: Router) {}
 
-  ngOnInit() { this.load(); this.timer = setInterval(() => this.load(), 5000); }
+  ngOnInit() { 
+    this.load(true); 
+    this.timer = setInterval(() => this.load(), 5000); 
+    this.requestNotifPermission();
+  }
+
   ngOnDestroy() { if (this.timer) clearInterval(this.timer); }
 
-  load() { this.api.getOrders().subscribe(o => this.orders = o); }
+  requestNotifPermission() {
+    if ('Notification' in window) {
+      this.notifPermission = Notification.permission;
+      if (this.notifPermission === 'default') {
+        Notification.requestPermission().then(perm => {
+          this.notifPermission = perm;
+        });
+      }
+    }
+  }
+
+  notifStatusTitle(): string {
+    if (this.notifPermission === 'granted') return 'Thông báo trình duyệt đang hoạt động';
+    if (this.notifPermission === 'denied') return 'Bạn đã chặn thông báo, hãy bật lại trong cài đặt trình duyệt';
+    return 'Nhấn để cho phép thông báo trình duyệt';
+  }
+
+  load(isInitial = false) { 
+    this.api.getOrders().subscribe(o => {
+      const newOrders = o.filter(order => order.status === 'new');
+      
+      if (!isInitial && newOrders.length > this.lastOrderCount) {
+        // Find the latest order to show info
+        const latest = newOrders[0];
+        this.triggerAlert(latest);
+      }
+      
+      this.orders = o;
+      this.lastOrderCount = newOrders.length;
+    }); 
+  }
+
+  triggerAlert(order: Order) {
+    // 1. Play Sound
+    if (this.soundEnabled) {
+      this.notificationSound.play().catch(e => console.log('Audio play blocked:', e));
+    }
+
+    // 2. Show Web Notification (System level)
+    if (this.notifPermission === 'granted') {
+      const n = new Notification('🥤 HANA - CÓ ORDER MỚI!', {
+        body: `Bàn số ${order.tableNumber} vừa đặt món. Tổng: ${order.total.toLocaleString()}đ`,
+        icon: 'assets/favicon.ico',
+        silent: true // We use our own sound
+      });
+      // Auto close after 10s
+      setTimeout(() => n.close(), 10000);
+      n.onclick = () => {
+        window.focus();
+        n.close();
+      };
+    }
+  }
+
+  toggleSound() {
+    this.soundEnabled = !this.soundEnabled;
+    if (this.soundEnabled) {
+      this.notificationSound.play().catch(() => {});
+      if (this.notifPermission !== 'granted') this.requestNotifPermission();
+    }
+  }
 
   get filteredOrders() { return this.filter ? this.orders.filter(o => o.status === this.filter) : this.orders; }
   get pendingCount() { return this.orders.filter(o => o.status === 'new').length; }
@@ -251,7 +326,12 @@ export class OrderManageComponent implements OnInit, OnDestroy {
   updateStatus(order: Order, status: string) {
     this.api.updateOrderStatus(order.id, status).subscribe(updated => {
       const idx = this.orders.findIndex(o => o.id === order.id);
-      if (idx >= 0) this.orders[idx] = updated;
+      if (idx >= 0) {
+        this.orders[idx] = updated;
+        if (status === 'making') {
+          this.lastOrderCount = Math.max(0, this.lastOrderCount - 1);
+        }
+      }
     });
   }
 
@@ -259,6 +339,9 @@ export class OrderManageComponent implements OnInit, OnDestroy {
     if (confirm('Xoá đơn hàng này?')) {
       this.api.deleteOrder(order.id).subscribe(() => {
         this.orders = this.orders.filter(o => o.id !== order.id);
+        if (order.status === 'new') {
+          this.lastOrderCount = Math.max(0, this.lastOrderCount - 1);
+        }
       });
     }
   }
