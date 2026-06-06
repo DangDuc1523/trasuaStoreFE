@@ -181,7 +181,6 @@ import { MenuItem, CATEGORY_LABELS } from '../../core/models';
       </div>
     }
 
-    /* Randomizer Modal */
     @if (showSpinner) {
       <div class="spinner-overlay" (click)="$event.stopPropagation()">
         <div class="spinner-modal">
